@@ -1,102 +1,60 @@
 """Description of your app."""
 from typing import Type
-import time
-from steamship import Steamship
-from steamship.base import TaskState
-import os
-import requests
-import json
-
-from dotenv import load_dotenv
-from pathlib import Path
-
 from steamship.invocable import Config, create_handler, post, PackageService
 
-class MyPackageConfig(Config):
-    """Config object containing required parameters to initialize a MyPackage instance."""
-
-    # This config should match the corresponding configuration in your steamship.json
-    default_name: str  # Required
-    enthusiastic: bool = False  # Not required
+# NOTE: It should be `notion` not `src.notion` here.
+from notion import notion_get, add_markdown
+# NOTE: It should be `transcribe` not `src.transcribe` here.
+from transcribe import transcribe_audio
 
 
-class MyPackage(PackageService):
+class NotionAutoTranscribeConfig(Config):
+    """Config object containing required parameters to initialize a NotionAutoTranscribe instance."""
+
+    notion_key: str  # Required
+
+
+class NotionAutoTranscribe(PackageService):
     """Example steamship Package."""
 
-    config: MyPackageConfig
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        env_path = Path('.')/'.env'
-        load_dotenv(dotenv_path=env_path)
-
-        NOTION_KEY = os.environ.get("NOTION_KEY")
-        self.headers = {'authorization': f"Bearer {NOTION_KEY}",
-                    'Content-Type': 'application/json',
-                    'Notion-Version': '2022-06-28',
-                    "accept": "application/json",
-                    }
+    config: NotionAutoTranscribeConfig
 
     def config_cls(self) -> Type[Config]:
         """Return the Configuration class."""
-        return MyPackageConfig
+        return NotionAutoTranscribeConfig
 
     @post("transcribe")
     def transcribe(self, url: str = None) -> str:
-        """Return a greeting to the user."""
-        instance = Steamship.use("audio-markdown", "audio-markdown-crows-v27")
+        """Transcribe the audio in the first Notion block of the page at `url` and append to the page.
+
+        This uses the API Key provided at configuration time to fetch the Notion Page, transcribe the
+        attached audio file, and then post the transcription results back to Notion as Markdown Text.
+        """
+
+        # Parse the Block ID from the Notion URL
         block_id = url.split("#")[1]
-        url = f"https://api.notion.com/v1/blocks/{block_id}"
-        response = requests.get(url, headers=self.headers)
-        print(response.text)
-        res_json = json.loads(response.text)
-        print(res_json)
 
-        audio_url = res_json['audio']['file']['url']
-        page_id = res_json['parent']['page_id']
+        # Get the Notion page
+        print(f"Getting notion block {block_id}")
+        notion_page = notion_get(f"blocks/{block_id}", self.config.notion_key)
 
-        transcribe_task = instance.invoke("transcribe_url", url=audio_url)
-        task_id = transcribe_task["task_id"]
-        status = transcribe_task["status"]
+        # Get the Page ID and Audio URL from the Notion File JSON
+        audio_url = notion_page['audio']['file']['url']
+        page_id = notion_page['parent']['page_id']
 
-        # Wait for completion
-        retries = 0
-        while retries <= 100 and status != TaskState.succeeded:
-            response = instance.invoke("get_markdown", task_id=task_id)
-            status = response["status"]
-            if status == TaskState.failed:
-                print(f"[FAILED] {response}['status_message']")
-                break
+        print(f"Audio url: {audio_url}")
+        print(f"Page ID: {page_id}")
 
-            print(f"[Try {retries}] Transcription {status}.")
-            if status == TaskState.succeeded:
-                break
-            time.sleep(2)
-            retries += 1
+        # Transcribe the file into Markdown
+        markdown = transcribe_audio(audio_url, self.client)
 
-        # Get Markdown
-        markdown = response["markdown"]
+        print(f"Markdown: {markdown}")
 
-        # this page id points to the page housing both the mp3 file and the returned markdown
-        add_text_block = {
-            "children":
-            [{
-            "object": "block",
-            "type": "paragraph",
-            "paragraph": {
-                "rich_text": [{
-                "type": "text",
-                "text": {
-                    "content": markdown,
-                }
-                }]
-            }
-            }]
-        }
+        # Add it to Notion
+        res_json = add_markdown(page_id, markdown, self.config.notion_key)
 
-        create_response = requests.patch(
-            f"https://api.notion.com/v1/blocks/{page_id}/children",
-            json=add_text_block, headers=self.headers)
-        return (create_response.json())
+        print(f"Res JSON: {res_json}")
 
-handler = create_handler(MyPackage)
+        return res_json
+
+handler = create_handler(NotionAutoTranscribe)
