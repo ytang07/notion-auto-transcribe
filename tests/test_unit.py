@@ -1,19 +1,25 @@
 """Unit tests for the package."""
+import os
+from pathlib import Path
 
 from steamship import Steamship
 
-from src.api import MyPackage
+from src.api import NotionAutoTranscribe
+
+from dotenv import load_dotenv
+
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path)
 
 
-def test_greeting():
+def test_transcription():
     """You can test your app like a regular Python object."""
     print("Running")
     client = Steamship()
-    app = MyPackage(client=client, config={"default_name": "World"})
+    env_path = Path('.') / '.env'
+    load_dotenv(dotenv_path=env_path)
+    NOTION_KEY = os.environ.get("NOTION_KEY")
 
-    assert app.greet() == "Hello, World."
-    assert app.greet(name="Ted") == "Hello, Ted."
+    app = NotionAutoTranscribe(client=client, config={"notion_key": NOTION_KEY})
 
-    app2 = MyPackage(client=client, config={"default_name": "World", "enthusiastic": True})
-    assert app2.greet() == "Hello, World!"
-    assert app2.greet(name="Ted") == "Hello, Ted!"
+    app.transcribe(url="https://www.notion.so/69f267134bd44249817339cad1a2e140#6575059dc4f14ead922e8e09f0afee6b")

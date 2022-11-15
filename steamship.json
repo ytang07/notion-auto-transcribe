@@ -1,7 +1,7 @@
 {
   "type": "package",
   "handle": "notion-auto-transcribe",
-  "version": "1.1.1",
+  "version": "1.1.5",
   "description": "",
   "author": "",
   "entrypoint": "api.handler",
@@ -13,14 +13,9 @@
     ]
   },
   "configTemplate": {
-    "default_name": {
+    "notion_key": {
       "type": "string",
-      "description": "The default name to greet."
-    },
-    "enthusiastic": {
-      "type": "boolean",
-      "description": "Whether to greet enthusiastically.",
-      "default": false
+      "description": "Your notion key."
     }
   }
 }
