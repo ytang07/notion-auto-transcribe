@@ -1,9 +1,11 @@
 """Description of your app."""
 from typing import Type
-from steamship.invocable import Config, create_handler, post, PackageService
+
+from steamship.invocable import Config, PackageService, create_handler, post
 
 # NOTE: It should be `notion` not `src.notion` here.
-from notion import notion_get, add_markdown
+from notion import add_markdown, notion_page_to_audio_url
+
 # NOTE: It should be `transcribe` not `src.transcribe` here.
 from transcribe import transcribe_audio
 
@@ -30,18 +32,7 @@ class NotionAutoTranscribe(PackageService):
         This uses the API Key provided at configuration time to fetch the Notion Page, transcribe the
         attached audio file, and then post the transcription results back to Notion as Markdown Text.
         """
-
-        # Parse the Block ID from the Notion URL
-        block_id = url.split("#")[1]
-
-        # Get the Notion page
-        print(f"Getting notion block {block_id}")
-        notion_page = notion_get(f"blocks/{block_id}", self.config.notion_key)
-
-        # Get the Page ID and Audio URL from the Notion File JSON
-        audio_url = notion_page['audio']['file']['url']
-        page_id = notion_page['parent']['page_id']
-
+        page_id, audio_url = notion_page_to_audio_url(url, self.config.notion_key)
         print(f"Audio url: {audio_url}")
         print(f"Page ID: {page_id}")
 
@@ -56,5 +47,6 @@ class NotionAutoTranscribe(PackageService):
         print(f"Res JSON: {res_json}")
 
         return res_json
+
 
 handler = create_handler(NotionAutoTranscribe)
